@@ -16,10 +16,10 @@ import Data.Argonaut.Encode.Record (encodeRecord)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Either (Either(..), fromRight)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
 import Data.String (toLower, toUpper)
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (ASSERT, assert)
+import Unsafe.Coerce (unsafeCoerce)
 
 data Example
   = Either (Either String Example)
@@ -29,7 +29,7 @@ data Example
 derive instance eqExample :: Eq Example
 derive instance genericExample :: Generic Example _
 instance showExample :: Show Example where
-  show a = genericShow a
+  show a = unsafeCoerce a
 instance encodeJsonExample :: EncodeJson Example where
   encodeJson a = genericEncodeJson a
 instance decodeJson :: DecodeJson Example where
@@ -43,7 +43,7 @@ data LiteralStringExample
 derive instance eqLiteralStringExample :: Eq LiteralStringExample
 derive instance genericLiteralStringExample :: Generic LiteralStringExample _
 instance showLiteralStringExample :: Show LiteralStringExample where
-  show a = genericShow a
+  show a = unsafeCoerce a
 instance encodeJsonLiteralStringExample :: EncodeJson LiteralStringExample where
   encodeJson a = encodeLiteralSumWithTransform id a
 instance decodeJsonLiteralStringExample :: DecodeJson LiteralStringExample where
@@ -57,7 +57,7 @@ newtype RecordTest = RecordTest
 derive instance eqRecordTest :: Eq RecordTest
 derive instance genericRecordTest :: Generic RecordTest _
 instance showRecordTest :: Show RecordTest where
-  show a = genericShow a
+  show a = unsafeCoerce a
 instance encodeRecordTest :: EncodeJson RecordTest where
   encodeJson (RecordTest a) = encodeRecord a
 instance decoderecordTest :: DecodeJson RecordTest where

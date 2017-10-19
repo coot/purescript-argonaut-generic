@@ -1,11 +1,9 @@
 module Data.Argonaut.Encode.Generic.Rep (
   class EncodeRep,
   class EncodeRepArgs,
-  class EncodeRepFields,
   class EncodeLiteral,
   encodeRep,
   encodeRepArgs,
-  encodeRepFields,
   genericEncodeJson,
   encodeLiteralSum,
   encodeLiteralSumWithTransform,
@@ -16,10 +14,12 @@ import Prelude
 
 import Data.Argonaut.Core (Json, fromArray, fromObject, fromString)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
+import Data.Argonaut.Encode.Record (class EncodeFields, encodeRecord)
 import Data.Generic.Rep as Rep
 import Data.StrMap as SM
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Partial.Unsafe (unsafeCrashWith)
+import Type.Prelude (class RowToList)
 
 class EncodeRep r where
   encodeRep :: r -> Json
@@ -47,23 +47,10 @@ instance encodeRepArgsNoArguments :: EncodeRepArgs Rep.NoArguments where
 instance encodeRepArgsProduct :: (EncodeRepArgs a, EncodeRepArgs b) => EncodeRepArgs (Rep.Product a b) where
   encodeRepArgs (Rep.Product a b) = encodeRepArgs a <> encodeRepArgs b
 
-instance encodeRepArgsArgument :: (EncodeJson a) => EncodeRepArgs (Rep.Argument a) where
+instance encodeRepArgsRecord :: (RowToList row rowList, EncodeFields rowList row) => EncodeRepArgs (Rep.Argument (Record row)) where
+  encodeRepArgs (Rep.Argument a) = [encodeRecord a]
+else instance encodeRepArgsArgument :: (EncodeJson a) => EncodeRepArgs (Rep.Argument a) where
   encodeRepArgs (Rep.Argument a) = [encodeJson a]
-
-instance encodeRepArgsRec :: (EncodeRepFields fields) => EncodeRepArgs (Rep.Rec fields) where
-  encodeRepArgs (Rep.Rec fields) = [fromObject $ encodeRepFields fields]
-
-class EncodeRepFields r where
-  encodeRepFields :: r -> SM.StrMap Json
-
-instance encodeRepFieldsProduct :: (EncodeRepFields a, EncodeRepFields b) => EncodeRepFields (Rep.Product a b) where
-  encodeRepFields (Rep.Product a b) =
-    SM.union (encodeRepFields a) (encodeRepFields b)
-
-instance encodeRepFieldsField :: (IsSymbol field, EncodeJson a) => EncodeRepFields (Rep.Field field a) where
-  encodeRepFields (Rep.Field a) =
-    SM.singleton (reflectSymbol (SProxy :: SProxy field))
-                 (encodeJson a)
 
 -- | Encode any `Generic` data structure into `Json`.
 genericEncodeJson :: forall a r. Rep.Generic a r => EncodeRep r => a -> Json

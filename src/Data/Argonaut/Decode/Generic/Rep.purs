@@ -1,11 +1,9 @@
 module Data.Argonaut.Decode.Generic.Rep (
   class DecodeRep,
   class DecodeRepArgs,
-  class DecodeRepFields,
   class DecodeLiteral,
   decodeRep,
   decodeRepArgs,
-  decodeRepFields,
   genericDecodeJson,
   decodeLiteralSum,
   decodeLiteralSumWithTransform,
@@ -17,6 +15,7 @@ import Prelude
 import Control.Alt ((<|>))
 import Data.Argonaut.Core (Json, toArray, toObject, toString)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode.Record (class DecodeFields, decodeRecord)
 import Data.Array (uncons)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
@@ -25,6 +24,7 @@ import Data.Maybe (Maybe, maybe)
 import Data.StrMap as SM
 import Data.Symbol (class IsSymbol, SProxy(..), reflectSymbol)
 import Partial.Unsafe (unsafeCrashWith)
+import Type.Row (class RowToList)
 
 class DecodeRep r where
   decodeRep :: Json -> Either String r
@@ -63,28 +63,15 @@ instance decodeRepArgsProduct :: (DecodeRepArgs a, DecodeRepArgs b) => DecodeRep
     {init: b, rest: js''} <- decodeRepArgs js'
     pure {init: Rep.Product a b, rest: js''}
 
-instance decodeRepArgsArgument :: (DecodeJson a) => DecodeRepArgs (Rep.Argument a) where
+
+instance decodeRepArgsRecord :: (RowToList row rowList, DecodeFields rowList row) => DecodeRepArgs (Rep.Argument (Record row)) where
+  decodeRepArgs js = do
+    {head, tail} <- mFail "too few values were present" (uncons js)
+    {init: _, rest: tail} <<< Rep.Argument <$> decodeRecord head
+else instance decodeRepArgsArgument :: (DecodeJson a) => DecodeRepArgs (Rep.Argument a) where
   decodeRepArgs js = do
     {head, tail} <- mFail "too few values were present" (uncons js)
     {init: _, rest: tail} <<< Rep.Argument <$> decodeJson head
-
-instance decodeRepArgsRec :: (DecodeRepFields fields) => DecodeRepArgs (Rep.Rec fields) where
-  decodeRepArgs js = do
-    {head, tail} <- mFail "too few values were present" (uncons js)
-    jObj <- mFail "record is not encoded as an object" (toObject head)
-    {init: _, rest: tail} <<< Rep.Rec <$> decodeRepFields jObj
-
-class DecodeRepFields r where
-  decodeRepFields :: SM.StrMap Json -> Either String r
-
-instance decodeRepFieldsProduct :: (DecodeRepFields a, DecodeRepFields b) => DecodeRepFields (Rep.Product a b) where
-  decodeRepFields js = Rep.Product <$> decodeRepFields js <*> decodeRepFields js
-
-instance decodeRepFieldsField :: (IsSymbol field, DecodeJson a) => DecodeRepFields (Rep.Field field a) where
-  decodeRepFields js = do
-    let name = reflectSymbol (SProxy :: SProxy field)
-    value <- mFail ("the field '" <> name <> "' is not present") (SM.lookup name js)
-    Rep.Field <$> decodeJson value
 
 -- | Decode `Json` representation of a value which has a `Generic` type.
 genericDecodeJson :: forall a r. Rep.Generic a r => DecodeRep r => Json -> Either String a
